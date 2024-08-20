@@ -1,6 +1,6 @@
+
 UniTask
 ===
-[![GitHub Actions](https://github.com/Cysharp/UniTask/workflows/Build-Debug/badge.svg)](https://github.com/Cysharp/UniTask/actions) [![Releases](https://img.shields.io/github/release/Cysharp/UniTask.svg)](https://github.com/Cysharp/UniTask/releases) [![Readme_CN](https://img.shields.io/badge/UniTask-%E4%B8%AD%E6%96%87%E6%96%87%E6%A1%A3-red)](https://github.com/Cysharp/UniTask/blob/master/README_CN.md)
 
 Provides an efficient allocation free async/await integration for Unity.
 
@@ -51,7 +51,34 @@ For advanced tips, see blog post: [Extends UnityWebRequest via async decorator p
 
 Getting started
 ---
-Install via [UPM package](#upm-package) with git reference or asset package(`UniTask.*.*.*.unitypackage`) available in [UniTask/releases](https://github.com/Cysharp/UniTask/releases).
+In order to use UniTask in Oxide you will need a plugin/harmony mod to initialize it:
+
+```cs
+private void Init()
+{
+   if (!PlayerLoopHelper.IsInjectedUniTaskPlayerLoop())
+   {
+      PlayerLoopHelper.SetSynchronizationContext(SynchronizationContext.Current);
+      PlayerLoopHelper.SetMainThreadId(Thread.CurrentThread.ManagedThreadId);
+
+      PlayerLoopSystem playerLoop = PlayerLoop.GetCurrentPlayerLoop();
+      PlayerLoopHelper.Initialize(ref playerLoop);
+   }
+        
+   UniTaskScheduler.UnobservedTaskException += UniTaskExceptionHandler;
+   UniTaskScheduler.DispatchUnityMainThread = false;
+}
+
+private void Unload()
+{
+   UniTaskScheduler.UnobservedTaskException -= UniTaskExceptionHandler;
+}
+
+private void UniTaskExceptionHandler(Exception exception)
+{
+   UnityEngine.Debug.LogError(exception);
+}
+```
 
 ```csharp
 // extension awaiter/methods can be used by this namespace
