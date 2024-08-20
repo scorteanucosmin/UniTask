@@ -10,49 +10,47 @@ namespace Cysharp.Threading.Tasks;
 
 public partial struct UniTask
 {
-#if UNITY_2018_3_OR_NEWER
+    /// <summary>
+    /// If running on mainthread, do nothing. Otherwise, same as UniTask.Yield(PlayerLoopTiming.Update).
+    /// </summary>
+    public static SwitchToMainThreadAwaitable SwitchToMainThread(CancellationToken cancellationToken = default)
+    {
+        return new SwitchToMainThreadAwaitable(PlayerLoopTiming.Update, cancellationToken);
+    }
 
-        /// <summary>
-        /// If running on mainthread, do nothing. Otherwise, same as UniTask.Yield(PlayerLoopTiming.Update).
-        /// </summary>
-        public static SwitchToMainThreadAwaitable SwitchToMainThread(CancellationToken cancellationToken = default)
-        {
-            return new SwitchToMainThreadAwaitable(PlayerLoopTiming.Update, cancellationToken);
-        }
+    /// <summary>
+    /// If running on mainthread, do nothing. Otherwise, same as UniTask.Yield(timing).
+    /// </summary>
+    public static SwitchToMainThreadAwaitable SwitchToMainThread(PlayerLoopTiming timing,
+        CancellationToken cancellationToken = default)
+    {
+        return new SwitchToMainThreadAwaitable(timing, cancellationToken);
+    }
 
-        /// <summary>
-        /// If running on mainthread, do nothing. Otherwise, same as UniTask.Yield(timing).
-        /// </summary>
-        public static SwitchToMainThreadAwaitable SwitchToMainThread(PlayerLoopTiming timing, CancellationToken cancellationToken = default)
-        {
-            return new SwitchToMainThreadAwaitable(timing, cancellationToken);
-        }
+    /// <summary>
+    /// Return to mainthread(same as await SwitchToMainThread) after using scope is closed.
+    /// </summary>
+    public static ReturnToMainThread ReturnToMainThread(CancellationToken cancellationToken = default)
+    {
+        return new ReturnToMainThread(PlayerLoopTiming.Update, cancellationToken);
+    }
 
-        /// <summary>
-        /// Return to mainthread(same as await SwitchToMainThread) after using scope is closed.
-        /// </summary>
-        public static ReturnToMainThread ReturnToMainThread(CancellationToken cancellationToken = default)
-        {
-            return new ReturnToMainThread(PlayerLoopTiming.Update, cancellationToken);
-        }
+    /// <summary>
+    /// Return to mainthread(same as await SwitchToMainThread) after using scope is closed.
+    /// </summary>
+    public static ReturnToMainThread ReturnToMainThread(PlayerLoopTiming timing,
+        CancellationToken cancellationToken = default)
+    {
+        return new ReturnToMainThread(timing, cancellationToken);
+    }
 
-        /// <summary>
-        /// Return to mainthread(same as await SwitchToMainThread) after using scope is closed.
-        /// </summary>
-        public static ReturnToMainThread ReturnToMainThread(PlayerLoopTiming timing, CancellationToken cancellationToken = default)
-        {
-            return new ReturnToMainThread(timing, cancellationToken);
-        }
-
-        /// <summary>
-        /// Queue the action to PlayerLoop.
-        /// </summary>
-        public static void Post(Action action, PlayerLoopTiming timing = PlayerLoopTiming.Update)
-        {
-            PlayerLoopHelper.AddContinuation(timing, action);
-        }
-
-#endif
+    /// <summary>
+    /// Queue the action to PlayerLoop.
+    /// </summary>
+    public static void Post(Action action, PlayerLoopTiming timing = PlayerLoopTiming.Update)
+    {
+        PlayerLoopHelper.AddContinuation(timing, action);
+    }
 
     public static SwitchToThreadPoolAwaitable SwitchToThreadPool()
     {
@@ -84,108 +82,111 @@ public partial struct UniTask
     }
 }
 
-#if UNITY_2018_3_OR_NEWER
+public struct SwitchToMainThreadAwaitable
+{
+    readonly PlayerLoopTiming playerLoopTiming;
+    readonly CancellationToken cancellationToken;
 
-    public struct SwitchToMainThreadAwaitable
+    public SwitchToMainThreadAwaitable(PlayerLoopTiming playerLoopTiming, CancellationToken cancellationToken)
+    {
+        this.playerLoopTiming = playerLoopTiming;
+        this.cancellationToken = cancellationToken;
+    }
+
+    public Awaiter GetAwaiter() => new Awaiter(playerLoopTiming, cancellationToken);
+
+    public struct Awaiter : ICriticalNotifyCompletion
     {
         readonly PlayerLoopTiming playerLoopTiming;
         readonly CancellationToken cancellationToken;
 
-        public SwitchToMainThreadAwaitable(PlayerLoopTiming playerLoopTiming, CancellationToken cancellationToken)
+        public Awaiter(PlayerLoopTiming playerLoopTiming, CancellationToken cancellationToken)
         {
             this.playerLoopTiming = playerLoopTiming;
             this.cancellationToken = cancellationToken;
         }
 
-        public Awaiter GetAwaiter() => new Awaiter(playerLoopTiming, cancellationToken);
-
-        public struct Awaiter : ICriticalNotifyCompletion
+        public bool IsCompleted
         {
-            readonly PlayerLoopTiming playerLoopTiming;
-            readonly CancellationToken cancellationToken;
-
-            public Awaiter(PlayerLoopTiming playerLoopTiming, CancellationToken cancellationToken)
+            get
             {
-                this.playerLoopTiming = playerLoopTiming;
-                this.cancellationToken = cancellationToken;
-            }
-
-            public bool IsCompleted
-            {
-                get
+                var currentThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
+                if (PlayerLoopHelper.MainThreadId == currentThreadId)
                 {
-                    var currentThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
-                    if (PlayerLoopHelper.MainThreadId == currentThreadId)
-                    {
-                        return true; // run immediate.
-                    }
-                    else
-                    {
-                        return false; // register continuation.
-                    }
+                    return true; // run immediate.
+                }
+                else
+                {
+                    return false; // register continuation.
                 }
             }
+        }
 
-            public void GetResult() { cancellationToken.ThrowIfCancellationRequested(); }
+        public void GetResult()
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
 
-            public void OnCompleted(Action continuation)
-            {
-                PlayerLoopHelper.AddContinuation(playerLoopTiming, continuation);
-            }
+        public void OnCompleted(Action continuation)
+        {
+            PlayerLoopHelper.AddContinuation(playerLoopTiming, continuation);
+        }
 
-            public void UnsafeOnCompleted(Action continuation)
-            {
-                PlayerLoopHelper.AddContinuation(playerLoopTiming, continuation);
-            }
+        public void UnsafeOnCompleted(Action continuation)
+        {
+            PlayerLoopHelper.AddContinuation(playerLoopTiming, continuation);
         }
     }
+}
 
-    public struct ReturnToMainThread
+public struct ReturnToMainThread
+{
+    readonly PlayerLoopTiming playerLoopTiming;
+    readonly CancellationToken cancellationToken;
+
+    public ReturnToMainThread(PlayerLoopTiming playerLoopTiming, CancellationToken cancellationToken)
     {
-        readonly PlayerLoopTiming playerLoopTiming;
+        this.playerLoopTiming = playerLoopTiming;
+        this.cancellationToken = cancellationToken;
+    }
+
+    public Awaiter DisposeAsync()
+    {
+        return new Awaiter(playerLoopTiming, cancellationToken); // run immediate.
+    }
+
+    public readonly struct Awaiter : ICriticalNotifyCompletion
+    {
+        readonly PlayerLoopTiming timing;
         readonly CancellationToken cancellationToken;
 
-        public ReturnToMainThread(PlayerLoopTiming playerLoopTiming, CancellationToken cancellationToken)
+        public Awaiter(PlayerLoopTiming timing, CancellationToken cancellationToken)
         {
-            this.playerLoopTiming = playerLoopTiming;
+            this.timing = timing;
             this.cancellationToken = cancellationToken;
         }
 
-        public Awaiter DisposeAsync()
+        public Awaiter GetAwaiter() => this;
+
+        public bool IsCompleted =>
+            PlayerLoopHelper.MainThreadId == System.Threading.Thread.CurrentThread.ManagedThreadId;
+
+        public void GetResult()
         {
-            return new Awaiter(playerLoopTiming, cancellationToken); // run immediate.
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
-        public readonly struct Awaiter : ICriticalNotifyCompletion
+        public void OnCompleted(Action continuation)
         {
-            readonly PlayerLoopTiming timing;
-            readonly CancellationToken cancellationToken;
+            PlayerLoopHelper.AddContinuation(timing, continuation);
+        }
 
-            public Awaiter(PlayerLoopTiming timing, CancellationToken cancellationToken)
-            {
-                this.timing = timing;
-                this.cancellationToken = cancellationToken;
-            }
-
-            public Awaiter GetAwaiter() => this;
-
-            public bool IsCompleted => PlayerLoopHelper.MainThreadId == System.Threading.Thread.CurrentThread.ManagedThreadId;
-
-            public void GetResult() { cancellationToken.ThrowIfCancellationRequested(); }
-
-            public void OnCompleted(Action continuation)
-            {
-                PlayerLoopHelper.AddContinuation(timing, continuation);
-            }
-
-            public void UnsafeOnCompleted(Action continuation)
-            {
-                PlayerLoopHelper.AddContinuation(timing, continuation);
-            }
+        public void UnsafeOnCompleted(Action continuation)
+        {
+            PlayerLoopHelper.AddContinuation(timing, continuation);
         }
     }
-
-#endif
+}
 
 public struct SwitchToThreadPoolAwaitable
 {

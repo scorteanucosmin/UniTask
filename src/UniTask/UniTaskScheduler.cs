@@ -22,9 +22,9 @@ public static class UniTaskScheduler
     public static UnityEngine.LogType UnobservedExceptionWriteLogType = UnityEngine.LogType.Exception;
 
     /// <summary>
-    /// Dispatch exception event to Unity MainThread. Default is true.
+    /// Dispatch exception event to Unity MainThread. Default is false.
     /// </summary>
-    public static bool DispatchUnityMainThread = true;
+    public static bool DispatchUnityMainThread = false;
 
     // cache delegate.
     private static readonly SendOrPostCallback HandleExceptionInvoke = InvokeUnobservedTaskException;
