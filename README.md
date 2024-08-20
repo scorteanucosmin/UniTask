@@ -28,22 +28,17 @@ For advanced tips, see blog post: [Extends UnityWebRequest via async decorator p
 - [Progress](#progress)
 - [PlayerLoop](#playerloop)
 - [async void vs async UniTaskVoid](#async-void-vs-async-unitaskvoid)
-- [UniTaskTracker](#unitasktracker)
 - [External Assets](#external-assets)
 - [AsyncEnumerable and Async LINQ](#asyncenumerable-and-async-linq)
 - [Awaitable Events](#awaitable-events)
 - [Channel](#channel)
-- [For Unit Testing](#for-unit-testing)
 - [ThreadPool limitation](#threadpool-limitation)
 - [IEnumerator.ToUniTask limitation](#ienumeratortounitask-limitation)
-- [For UnityEditor](#for-unityeditor)
 - [Compare with Standard Task API](#compare-with-standard-task-api)
 - [Pooling Configuration](#pooling-configuration)
 - [Allocation on Profiler](#allocation-on-profiler)
 - [UniTaskSynchronizationContext](#unitasksynchronizationcontext)
 - [API References](#api-references)
-- [UPM Package](#upm-package)
-  - [Install via git URL](#install-via-git-url)
 - [.NET Core](#net-core)
 - [License](#license)
 
@@ -553,14 +548,6 @@ It indicates when to run, you can check [PlayerLoopList.md](https://gist.github.
 
 In UniTask, await directly uses native timing, while `WithCancellation` and `ToUniTask` use specified timing. This is usually not a particular problem, but with `LoadSceneAsync`, it causes a different order of Start and continuation after await. So it is recommended not to use `LoadSceneAsync.ToUniTask`.
 
-In the stacktrace, you can check where it is running in playerloop.
-
-![image](https://user-images.githubusercontent.com/46207/83735571-83caea80-a68b-11ea-8d22-5e22864f0d24.png)
-
-By default, UniTask's PlayerLoop is initialized at `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]`.
-
-The order in which methods are called in BeforeSceneLoad is nondeterministic, so if you want to use UniTask in other BeforeSceneLoad methods, you should try to initialize it before this.
-
 ```csharp
 // AfterAssembliesLoaded is called before BeforeSceneLoad
 [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
@@ -682,45 +669,6 @@ class Sample : MonoBehaviour
     }
 }
 ```
-
-UniTaskTracker
----
-useful for checking (leaked) UniTasks. You can open tracker window in `Window -> UniTask Tracker`.
-
-![image](https://user-images.githubusercontent.com/46207/83527073-4434bf00-a522-11ea-86e9-3b3975b26266.png)
-
-* Enable AutoReload(Toggle) - Reload automatically.
-* Reload - Reload view.
-* GC.Collect - Invoke GC.Collect.
-* Enable Tracking(Toggle) - Start to track async/await UniTask. Performance impact: low.
-* Enable StackTrace(Toggle) - Capture StackTrace when task is started. Performance impact: high.
-
-UniTaskTracker is intended for debugging use only as enabling tracking and capturing stacktraces is useful but has a heavy performance impact. Recommended usage is to enable both tracking and stacktraces to find task leaks and to disable them both when done.
-
-External Assets
----
-By default, UniTask supports TextMeshPro(`BindTo(TMP_Text)` and `TMP_InputField` event extensions like standard uGUI `InputField`), DOTween(`Tween` as awaitable) and Addressables(`AsyncOperationHandle` and `AsyncOperationHandle<T>` as awaitable).
-
-There are defined in separated asmdefs like `UniTask.TextMeshPro`, `UniTask.DOTween`, `UniTask.Addressables`.
-
-TextMeshPro and Addressables support are automatically enabled when importing their packages from package manager. 
-However for DOTween support, after importing from the [DOTWeen assets](https://assetstore.unity.com/packages/tools/animation/dotween-hotween-v2-27676r) and define the scripting define symbol `UNITASK_DOTWEEN_SUPPORT` to enable it.
-
-```csharp
-// sequential
-await transform.DOMoveX(2, 10);
-await transform.DOMoveZ(5, 20);
-
-// parallel with cancellation
-var ct = this.GetCancellationTokenOnDestroy();
-
-await UniTask.WhenAll(
-    transform.DOMoveX(10, 3).WithCancellation(ct),
-    transform.DOScale(10, 3).WithCancellation(ct));
-```
-
-DOTween support's default behaviour(`await`, `WithCancellation`, `ToUniTask`) awaits tween is killed. It works on both Complete(true/false) and Kill(true/false). But if you want to reuse tweens (`SetAutoKill(false)`), it does not work as expected. If you want to await for another timing, the following extension methods exist in Tween, `AwaitForComplete`, `AwaitForPause`, `AwaitForPlay`, `AwaitForRewind`, `AwaitForStepComplete`.
-
 AsyncEnumerable and Async LINQ
 ---
 Unity 2020.2 supports C# 8.0 so you can use `await foreach`. This is the new Update notation in the async era.
@@ -964,33 +912,6 @@ public class AsyncMessageBroker<T> : IDisposable
 }
 ```
 
-For Unit Testing
----
-Unity's `[UnityTest]` attribute can test coroutine(IEnumerator) but can not test async. `UniTask.ToCoroutine` bridges async/await to coroutine so you can test async methods.
-
-```csharp
-[UnityTest]
-public IEnumerator DelayIgnore() => UniTask.ToCoroutine(async () =>
-{
-    var time = Time.realtimeSinceStartup;
-
-    Time.timeScale = 0.5f;
-    try
-    {
-        await UniTask.Delay(TimeSpan.FromSeconds(3), ignoreTimeScale: true);
-
-        var elapsed = Time.realtimeSinceStartup - time;
-        Assert.AreEqual(3, (int)Math.Round(TimeSpan.FromSeconds(elapsed).TotalSeconds, MidpointRounding.ToEven));
-    }
-    finally
-    {
-        Time.timeScale = 1.0f;
-    }
-});
-```
-
-UniTask's own unit tests are written using Unity Test Runner and [Cysharp/RuntimeUnitTestToolkit](https://github.com/Cysharp/RuntimeUnitTestToolkit) to integrate with CI and check if IL2CPP is working.
-
 ThreadPool limitation
 ---
 Most UniTask methods run on a single thread (PlayerLoop), with only `UniTask.Run`(`Task.Run` equivalent) and `UniTask.SwitchToThreadPool` running on a thread pool. If you use a thread pool, it won't work with WebGL and so on.
@@ -1005,14 +926,6 @@ You can convert coroutine(IEnumerator) to UniTask(or await directly) but it has 
 * Consuming loop timing is not the same as `StartCoroutine`, it uses the specified `PlayerLoopTiming` and the default `PlayerLoopTiming.Update` is run before MonoBehaviour's `Update` and `StartCoroutine`'s loop.
 
 If you want fully compatible conversion from coroutine to async, use the `IEnumerator.ToUniTask(MonoBehaviour coroutineRunner)` overload. It executes StartCoroutine on an instance of the argument MonoBehaviour and waits for it to complete in UniTask.
-
-For UnityEditor
----
-UniTask can run on Unity Editor like an Editor Coroutine. However, there are some limitations.
-
-* UniTask.Delay's DelayType.DeltaTime, UnscaledDeltaTime do not work correctly because they can not get deltaTime in editor. Therefore run on EditMode, automatically change DelayType to `DelayType.Realtime` that wait for the right time.
-* All PlayerLoopTiming run on the timing `EditorApplication.update`.
-* `-batchmode` with `-quit` does not work because Unity does not run `EditorApplication.update` and quit after a single frame. Instead, don't use `-quit` and quit manually with `EditorApplication.Exit(0)`.
 
 Compare with Standard Task API
 ---
@@ -1103,21 +1016,6 @@ API References
 UniTask's API References are hosted at [cysharp.github.io/UniTask](https://cysharp.github.io/UniTask/api/Cysharp.Threading.Tasks.html) by [DocFX](https://dotnet.github.io/docfx/) and [Cysharp/DocfXTemplate](https://github.com/Cysharp/DocfxTemplate).
 
 For example, UniTask's factory methods can be seen at [UniTask#methods](https://cysharp.github.io/UniTask/api/Cysharp.Threading.Tasks.UniTask.html#methods-1). UniTaskAsyncEnumerable's factory/extension methods can be seen at [UniTaskAsyncEnumerable#methods](https://cysharp.github.io/UniTask/api/Cysharp.Threading.Tasks.Linq.UniTaskAsyncEnumerable.html#methods-1).
-
-UPM Package
----
-### Install via git URL
-
-Requires a version of unity that supports path query parameter for git packages (Unity >= 2019.3.4f1, Unity >= 2020.1a21). You can add `https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask` to Package Manager
-
-![image](https://user-images.githubusercontent.com/46207/79450714-3aadd100-8020-11ea-8aae-b8d87fc4d7be.png)
-
-![image](https://user-images.githubusercontent.com/46207/83702872-e0f17c80-a648-11ea-8183-7469dcd4f810.png)
-
-or add `"com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"` to `Packages/manifest.json`.
-
-If you want to set a target version, UniTask uses the `*.*.*` release tag so you can specify a version like `#2.1.0`. For example `https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.1.0`.
-
 
 .NET Core
 ---
