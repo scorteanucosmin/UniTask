@@ -51,7 +51,7 @@ For advanced tips, see blog post: [Extends UnityWebRequest via async decorator p
 
 Getting started
 ---
-In order to use UniTask in Oxide you will need a plugin/harmony mod for initialization:
+In order to use UniTask in Oxide you will need a plugin/extension/harmony mod for initialization:
 
 ```cs
 private void Init()
