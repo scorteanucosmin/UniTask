@@ -112,7 +112,8 @@ public enum InjectPlayerLoopTimings
         PreUpdate |
         Update |
         PreLateUpdate |
-        PostLateUpdate | LastPostLateUpdate | 
+        PostLateUpdate | 
+        LastPostLateUpdate | 
         TimeUpdate,
     /// <summary>
     /// Preset: Minimum pattern, Update | FixedUpdate | LastPostLateUpdate
@@ -156,14 +157,12 @@ public static class PlayerLoopHelper
 {
     public static int MainThreadId { get; private set; }
     public static SynchronizationContext UnitySynchronizationContext { get; private set; }
-    
     internal static string ApplicationDataPath { get; }
     public static bool IsMainThread => Thread.CurrentThread.ManagedThreadId == MainThreadId;
     private static ContinuationQueue[] _yielders;
     private static PlayerLoopRunner[] _runners;
     
-    private static PlayerLoopSystem[] InsertRunner(PlayerLoopSystem loopSystem,
-        bool injectOnFirst,
+    private static PlayerLoopSystem[] InsertRunner(PlayerLoopSystem loopSystem, bool injectOnFirst, 
         Type loopRunnerYieldType, ContinuationQueue cq,
         Type loopRunnerType, PlayerLoopRunner runner)
     {
@@ -396,13 +395,8 @@ public static class PlayerLoopHelper
         return false;
     }
     
-    public static void SetMainThreadId(int threadId)
-    {
-        MainThreadId = threadId;
-    }
-    
-    public static void SetSynchronizationContext(SynchronizationContext synchronizationContext)
-    {
+    public static void SetMainThreadId(int threadId) => MainThreadId = threadId;
+
+    public static void SetSynchronizationContext(SynchronizationContext synchronizationContext) => 
         UnitySynchronizationContext = synchronizationContext;
-    }
 }

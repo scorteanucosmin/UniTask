@@ -61,32 +61,32 @@ public static class UniTaskScheduler
         }
         else
         {
-            string msg = null;
+            string message = null;
             if (UnobservedExceptionWriteLogType != UnityEngine.LogType.Exception)
             {
-                msg = $"UnobservedTaskException: {exception}";
+                message = string.Format("UnobservedTaskException: {0}", exception);
             }
 
             switch (UnobservedExceptionWriteLogType)
             {
                 case UnityEngine.LogType.Error:
                 {
-                    UnityEngine.Debug.LogError(msg);
+                    UnityEngine.Debug.LogError(message);
                     break;
                 }
                 case UnityEngine.LogType.Assert:
                 {
-                    UnityEngine.Debug.LogAssertion(msg);
+                    UnityEngine.Debug.LogAssertion(message);
                     break;
                 }
                 case UnityEngine.LogType.Warning:
                 {
-                    UnityEngine.Debug.LogWarning(msg);
+                    UnityEngine.Debug.LogWarning(message);
                     break;
                 }
                 case UnityEngine.LogType.Log:
                 {
-                    UnityEngine.Debug.Log(msg);
+                    UnityEngine.Debug.Log(message);
                     break;
                 }
                 case UnityEngine.LogType.Exception:
