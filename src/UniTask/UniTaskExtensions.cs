@@ -201,6 +201,7 @@ public static partial class UniTaskExtensions
 
         if (cancellationToken.IsCancellationRequested)
         {
+            task.Forget();
             return UniTask.FromCanceled(cancellationToken);
         }
 
@@ -224,6 +225,7 @@ public static partial class UniTaskExtensions
 
         if (cancellationToken.IsCancellationRequested)
         {
+            task.Forget();
             return UniTask.FromCanceled<T>(cancellationToken);
         }
 
