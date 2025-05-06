@@ -80,7 +80,7 @@ public partial struct UniTask
         {
             await Awaitable.EndOfFrameAsync(cancellationToken);
         }
-#else        
+#else
     [Obsolete("Use WaitForEndOfFrame(MonoBehaviour) instead or UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate). Equivalent for coroutine's WaitForEndOfFrame requires MonoBehaviour(runner of Coroutine).")]
     public static YieldAwaitable WaitForEndOfFrame()
     {
@@ -92,17 +92,17 @@ public partial struct UniTask
     {
         return Yield(PlayerLoopTiming.LastPostLateUpdate, cancellationToken, cancelImmediately);
     }
-#endif        
+#endif
 
     public static UniTask WaitForEndOfFrame(MonoBehaviour coroutineRunner)
     {
-        IUniTaskSource? source = WaitForEndOfFramePromise.Create(coroutineRunner, CancellationToken.None, false, out short token);
+        IUniTaskSource source = WaitForEndOfFramePromise.Create(coroutineRunner, CancellationToken.None, false, out short token);
         return new UniTask(source, token);
     }
 
     public static UniTask WaitForEndOfFrame(MonoBehaviour coroutineRunner, CancellationToken cancellationToken, bool cancelImmediately = false)
     {
-        IUniTaskSource? source = WaitForEndOfFramePromise.Create(coroutineRunner, cancellationToken, cancelImmediately, out short token);
+        IUniTaskSource source = WaitForEndOfFramePromise.Create(coroutineRunner, cancellationToken, cancelImmediately, out short token);
         return new UniTask(source, token);
     }
 
@@ -195,10 +195,10 @@ public partial struct UniTask
         }
     }
 
-    private sealed class YieldPromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<YieldPromise>
+    sealed class YieldPromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<YieldPromise>
     {
-        private static TaskPool<YieldPromise> pool;
-        private YieldPromise nextNode;
+        static TaskPool<YieldPromise> pool;
+        YieldPromise nextNode;
         public ref YieldPromise NextNode => ref nextNode;
 
         static YieldPromise()
@@ -206,12 +206,12 @@ public partial struct UniTask
             TaskPool.RegisterSizeGetter(typeof(YieldPromise), () => pool.Size);
         }
 
-        private CancellationToken cancellationToken;
-        private CancellationTokenRegistration cancellationTokenRegistration;
-        private bool cancelImmediately;
-        private UniTaskCompletionSourceCore<object> core;
+        CancellationToken cancellationToken;
+        CancellationTokenRegistration cancellationTokenRegistration;
+        bool cancelImmediately;
+        UniTaskCompletionSourceCore<object> core;
 
-        private YieldPromise()
+        YieldPromise()
         {
         }
 
@@ -222,14 +222,14 @@ public partial struct UniTask
                 return AutoResetUniTaskCompletionSource.CreateFromCanceled(cancellationToken, out token);
             }
 
-            if (!pool.TryPop(out YieldPromise? result))
+            if (!pool.TryPop(out YieldPromise result))
             {
                 result = new YieldPromise();
             }
 
             result.cancellationToken = cancellationToken;
             result.cancelImmediately = cancelImmediately;
-                
+
             if (cancelImmediately && cancellationToken.CanBeCanceled)
             {
                 result.cancellationTokenRegistration = cancellationToken.RegisterWithoutCaptureExecutionContext(state =>
@@ -258,6 +258,10 @@ public partial struct UniTask
                 if (!(cancelImmediately && cancellationToken.IsCancellationRequested))
                 {
                     TryReturn();
+                }
+                else
+                {
+                    TaskTracker.RemoveTracking(this);
                 }
             }
         }
@@ -289,7 +293,7 @@ public partial struct UniTask
             return false;
         }
 
-        private bool TryReturn()
+        bool TryReturn()
         {
             TaskTracker.RemoveTracking(this);
             core.Reset();
@@ -300,10 +304,10 @@ public partial struct UniTask
         }
     }
 
-    private sealed class NextFramePromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<NextFramePromise>
+    sealed class NextFramePromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<NextFramePromise>
     {
-        private static TaskPool<NextFramePromise> pool;
-        private NextFramePromise nextNode;
+        static TaskPool<NextFramePromise> pool;
+        NextFramePromise nextNode;
         public ref NextFramePromise NextNode => ref nextNode;
 
         static NextFramePromise()
@@ -311,13 +315,13 @@ public partial struct UniTask
             TaskPool.RegisterSizeGetter(typeof(NextFramePromise), () => pool.Size);
         }
 
-        private int frameCount;
-        private UniTaskCompletionSourceCore<AsyncUnit> core;
-        private CancellationToken cancellationToken;
-        private CancellationTokenRegistration cancellationTokenRegistration;
-        private bool cancelImmediately;
+        int frameCount;
+        UniTaskCompletionSourceCore<AsyncUnit> core;
+        CancellationToken cancellationToken;
+        CancellationTokenRegistration cancellationTokenRegistration;
+        bool cancelImmediately;
 
-        private NextFramePromise()
+        NextFramePromise()
         {
         }
 
@@ -328,7 +332,7 @@ public partial struct UniTask
                 return AutoResetUniTaskCompletionSource.CreateFromCanceled(cancellationToken, out token);
             }
 
-            if (!pool.TryPop(out NextFramePromise? result))
+            if (!pool.TryPop(out NextFramePromise result))
             {
                 result = new NextFramePromise();
             }
@@ -366,6 +370,10 @@ public partial struct UniTask
                 {
                     TryReturn();
                 }
+                else
+                {
+                    TaskTracker.RemoveTracking(this);
+                }
             }
         }
 
@@ -401,7 +409,7 @@ public partial struct UniTask
             return false;
         }
 
-        private bool TryReturn()
+        bool TryReturn()
         {
             TaskTracker.RemoveTracking(this);
             core.Reset();
@@ -411,10 +419,10 @@ public partial struct UniTask
         }
     }
 
-    private sealed class WaitForEndOfFramePromise : IUniTaskSource, ITaskPoolNode<WaitForEndOfFramePromise>, IEnumerator
+    sealed class WaitForEndOfFramePromise : IUniTaskSource, ITaskPoolNode<WaitForEndOfFramePromise>, IEnumerator
     {
-        private static TaskPool<WaitForEndOfFramePromise> pool;
-        private WaitForEndOfFramePromise nextNode;
+        static TaskPool<WaitForEndOfFramePromise> pool;
+        WaitForEndOfFramePromise nextNode;
         public ref WaitForEndOfFramePromise NextNode => ref nextNode;
 
         static WaitForEndOfFramePromise()
@@ -422,12 +430,12 @@ public partial struct UniTask
             TaskPool.RegisterSizeGetter(typeof(WaitForEndOfFramePromise), () => pool.Size);
         }
 
-        private UniTaskCompletionSourceCore<object> core;
-        private CancellationToken cancellationToken;
-        private CancellationTokenRegistration cancellationTokenRegistration;
-        private bool cancelImmediately;
+        UniTaskCompletionSourceCore<object> core;
+        CancellationToken cancellationToken;
+        CancellationTokenRegistration cancellationTokenRegistration;
+        bool cancelImmediately;
 
-        private WaitForEndOfFramePromise()
+        WaitForEndOfFramePromise()
         {
         }
 
@@ -438,7 +446,7 @@ public partial struct UniTask
                 return AutoResetUniTaskCompletionSource.CreateFromCanceled(cancellationToken, out token);
             }
 
-            if (!pool.TryPop(out WaitForEndOfFramePromise? result))
+            if (!pool.TryPop(out WaitForEndOfFramePromise result))
             {
                 result = new WaitForEndOfFramePromise();
             }
@@ -475,6 +483,10 @@ public partial struct UniTask
                 {
                     TryReturn();
                 }
+                else
+                {
+                    TaskTracker.RemoveTracking(this);
+                }
             }
         }
 
@@ -493,7 +505,7 @@ public partial struct UniTask
             core.OnCompleted(continuation, state, token);
         }
 
-        private bool TryReturn()
+        bool TryReturn()
         {
             TaskTracker.RemoveTracking(this);
             core.Reset();
@@ -505,8 +517,8 @@ public partial struct UniTask
 
         // Coroutine Runner implementation
 
-        private static readonly WaitForEndOfFrame waitForEndOfFrameYieldInstruction = new();
-        private bool isFirst = true;
+        static readonly WaitForEndOfFrame waitForEndOfFrameYieldInstruction = new WaitForEndOfFrame();
+        bool isFirst = true;
 
         object IEnumerator.Current => waitForEndOfFrameYieldInstruction;
 
@@ -534,10 +546,10 @@ public partial struct UniTask
         }
     }
 
-    private sealed class DelayFramePromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<DelayFramePromise>
+    sealed class DelayFramePromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<DelayFramePromise>
     {
-        private static TaskPool<DelayFramePromise> pool;
-        private DelayFramePromise nextNode;
+        static TaskPool<DelayFramePromise> pool;
+        DelayFramePromise nextNode;
         public ref DelayFramePromise NextNode => ref nextNode;
 
         static DelayFramePromise()
@@ -545,16 +557,16 @@ public partial struct UniTask
             TaskPool.RegisterSizeGetter(typeof(DelayFramePromise), () => pool.Size);
         }
 
-        private int initialFrame;
-        private int delayFrameCount;
-        private CancellationToken cancellationToken;
-        private CancellationTokenRegistration cancellationTokenRegistration;
-        private bool cancelImmediately;
+        int initialFrame;
+        int delayFrameCount;
+        CancellationToken cancellationToken;
+        CancellationTokenRegistration cancellationTokenRegistration;
+        bool cancelImmediately;
 
-        private int currentFrameCount;
-        private UniTaskCompletionSourceCore<AsyncUnit> core;
+        int currentFrameCount;
+        UniTaskCompletionSourceCore<AsyncUnit> core;
 
-        private DelayFramePromise()
+        DelayFramePromise()
         {
         }
 
@@ -565,7 +577,7 @@ public partial struct UniTask
                 return AutoResetUniTaskCompletionSource.CreateFromCanceled(cancellationToken, out token);
             }
 
-            if (!pool.TryPop(out DelayFramePromise? result))
+            if (!pool.TryPop(out DelayFramePromise result))
             {
                 result = new DelayFramePromise();
             }
@@ -603,6 +615,10 @@ public partial struct UniTask
                 if (!(cancelImmediately && cancellationToken.IsCancellationRequested))
                 {
                     TryReturn();
+                }
+                else
+                {
+                    TaskTracker.RemoveTracking(this);
                 }
             }
         }
@@ -666,7 +682,7 @@ public partial struct UniTask
             return true;
         }
 
-        private bool TryReturn()
+        bool TryReturn()
         {
             TaskTracker.RemoveTracking(this);
             core.Reset();
@@ -679,10 +695,10 @@ public partial struct UniTask
         }
     }
 
-    private sealed class DelayPromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<DelayPromise>
+    sealed class DelayPromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<DelayPromise>
     {
-        private static TaskPool<DelayPromise> pool;
-        private DelayPromise nextNode;
+        static TaskPool<DelayPromise> pool;
+        DelayPromise nextNode;
         public ref DelayPromise NextNode => ref nextNode;
 
         static DelayPromise()
@@ -690,16 +706,16 @@ public partial struct UniTask
             TaskPool.RegisterSizeGetter(typeof(DelayPromise), () => pool.Size);
         }
 
-        private int initialFrame;
-        private float delayTimeSpan;
-        private float elapsed;
-        private CancellationToken cancellationToken;
-        private CancellationTokenRegistration cancellationTokenRegistration;
-        private bool cancelImmediately;
+        int initialFrame;
+        float delayTimeSpan;
+        float elapsed;
+        CancellationToken cancellationToken;
+        CancellationTokenRegistration cancellationTokenRegistration;
+        bool cancelImmediately;
 
-        private UniTaskCompletionSourceCore<object> core;
+        UniTaskCompletionSourceCore<object> core;
 
-        private DelayPromise()
+        DelayPromise()
         {
         }
 
@@ -710,7 +726,7 @@ public partial struct UniTask
                 return AutoResetUniTaskCompletionSource.CreateFromCanceled(cancellationToken, out token);
             }
 
-            if (!pool.TryPop(out DelayPromise? result))
+            if (!pool.TryPop(out DelayPromise result))
             {
                 result = new DelayPromise();
             }
@@ -749,6 +765,10 @@ public partial struct UniTask
                 if (!(cancelImmediately && cancellationToken.IsCancellationRequested))
                 {
                     TryReturn();
+                }
+                else
+                {
+                    TaskTracker.RemoveTracking(this);
                 }
             }
         }
@@ -794,7 +814,7 @@ public partial struct UniTask
             return true;
         }
 
-        private bool TryReturn()
+        bool TryReturn()
         {
             TaskTracker.RemoveTracking(this);
             core.Reset();
@@ -807,10 +827,10 @@ public partial struct UniTask
         }
     }
 
-    private sealed class DelayIgnoreTimeScalePromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<DelayIgnoreTimeScalePromise>
+    sealed class DelayIgnoreTimeScalePromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<DelayIgnoreTimeScalePromise>
     {
-        private static TaskPool<DelayIgnoreTimeScalePromise> pool;
-        private DelayIgnoreTimeScalePromise nextNode;
+        static TaskPool<DelayIgnoreTimeScalePromise> pool;
+        DelayIgnoreTimeScalePromise nextNode;
         public ref DelayIgnoreTimeScalePromise NextNode => ref nextNode;
 
         static DelayIgnoreTimeScalePromise()
@@ -818,16 +838,16 @@ public partial struct UniTask
             TaskPool.RegisterSizeGetter(typeof(DelayIgnoreTimeScalePromise), () => pool.Size);
         }
 
-        private float delayFrameTimeSpan;
-        private float elapsed;
-        private int initialFrame;
-        private CancellationToken cancellationToken;
-        private CancellationTokenRegistration cancellationTokenRegistration;
-        private bool cancelImmediately;
+        float delayFrameTimeSpan;
+        float elapsed;
+        int initialFrame;
+        CancellationToken cancellationToken;
+        CancellationTokenRegistration cancellationTokenRegistration;
+        bool cancelImmediately;
 
-        private UniTaskCompletionSourceCore<object> core;
+        UniTaskCompletionSourceCore<object> core;
 
-        private DelayIgnoreTimeScalePromise()
+        DelayIgnoreTimeScalePromise()
         {
         }
 
@@ -838,7 +858,7 @@ public partial struct UniTask
                 return AutoResetUniTaskCompletionSource.CreateFromCanceled(cancellationToken, out token);
             }
 
-            if (!pool.TryPop(out DelayIgnoreTimeScalePromise? result))
+            if (!pool.TryPop(out DelayIgnoreTimeScalePromise result))
             {
                 result = new DelayIgnoreTimeScalePromise();
             }
@@ -877,6 +897,10 @@ public partial struct UniTask
                 if (!(cancelImmediately && cancellationToken.IsCancellationRequested))
                 {
                     TryReturn();
+                }
+                else
+                {
+                    TaskTracker.RemoveTracking(this);
                 }
             }
         }
@@ -922,7 +946,7 @@ public partial struct UniTask
             return true;
         }
 
-        private bool TryReturn()
+        bool TryReturn()
         {
             TaskTracker.RemoveTracking(this);
             core.Reset();
@@ -935,10 +959,10 @@ public partial struct UniTask
         }
     }
 
-    private sealed class DelayRealtimePromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<DelayRealtimePromise>
+    sealed class DelayRealtimePromise : IUniTaskSource, IPlayerLoopItem, ITaskPoolNode<DelayRealtimePromise>
     {
-        private static TaskPool<DelayRealtimePromise> pool;
-        private DelayRealtimePromise nextNode;
+        static TaskPool<DelayRealtimePromise> pool;
+        DelayRealtimePromise nextNode;
         public ref DelayRealtimePromise NextNode => ref nextNode;
 
         static DelayRealtimePromise()
@@ -946,15 +970,15 @@ public partial struct UniTask
             TaskPool.RegisterSizeGetter(typeof(DelayRealtimePromise), () => pool.Size);
         }
 
-        private long delayTimeSpanTicks;
-        private ValueStopwatch stopwatch;
-        private CancellationToken cancellationToken;
-        private CancellationTokenRegistration cancellationTokenRegistration;
-        private bool cancelImmediately;
+        long delayTimeSpanTicks;
+        ValueStopwatch stopwatch;
+        CancellationToken cancellationToken;
+        CancellationTokenRegistration cancellationTokenRegistration;
+        bool cancelImmediately;
 
-        private UniTaskCompletionSourceCore<AsyncUnit> core;
+        UniTaskCompletionSourceCore<AsyncUnit> core;
 
-        private DelayRealtimePromise()
+        DelayRealtimePromise()
         {
         }
 
@@ -965,7 +989,7 @@ public partial struct UniTask
                 return AutoResetUniTaskCompletionSource.CreateFromCanceled(cancellationToken, out token);
             }
 
-            if (!pool.TryPop(out DelayRealtimePromise? result))
+            if (!pool.TryPop(out DelayRealtimePromise result))
             {
                 result = new DelayRealtimePromise();
             }
@@ -1003,6 +1027,10 @@ public partial struct UniTask
                 if (!(cancelImmediately && cancellationToken.IsCancellationRequested))
                 {
                     TryReturn();
+                }
+                else
+                {
+                    TaskTracker.RemoveTracking(this);
                 }
             }
         }
@@ -1045,7 +1073,7 @@ public partial struct UniTask
             return true;
         }
 
-        private bool TryReturn()
+        bool TryReturn()
         {
             TaskTracker.RemoveTracking(this);
             core.Reset();
@@ -1060,7 +1088,7 @@ public partial struct UniTask
 
 public readonly struct YieldAwaitable
 {
-    private readonly PlayerLoopTiming timing;
+    readonly PlayerLoopTiming timing;
 
     public YieldAwaitable(PlayerLoopTiming timing)
     {
@@ -1079,7 +1107,7 @@ public readonly struct YieldAwaitable
 
     public readonly struct Awaiter : ICriticalNotifyCompletion
     {
-        private readonly PlayerLoopTiming timing;
+        readonly PlayerLoopTiming timing;
 
         public Awaiter(PlayerLoopTiming timing)
         {
